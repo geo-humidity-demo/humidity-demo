@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>气象模拟：水分子立方体+饱和曲线 | 三列并排</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            background: linear-gradient(145deg, #cae1f5 0%, #e6f0ff 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', 'Roboto', 'Noto Sans', system-ui, sans-serif;
+            padding: 30px 36px;
+        }
+
+        /* 主容器 - 宽屏适配，三列布局 */
+        .weather-lab {
+            max-width: 1800px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(3px);
+            border-radius: 2.5rem;
+            box-shadow: 0 25px 45px -12px rgba(0, 40, 70, 0.35);
+            padding: 2rem 2rem 2rem 2rem;
+            border: 1px solid rgba(255,255,245,0.8);
+            transition: all 0.2s;
+        }
+
+        /* 头部区域 */
+        .header-area {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 1.8rem;
+        }
+        h1 {
+            font-size: 2.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #136b9c, #08527a);
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+        }
+        .sub {
+            color: #2c6e9e;
+            margin-top: 0.3rem;
+            font-weight: 500;
+            border-left: 4px solid #4d9fdc;
+            padding-left: 1rem;
+            background: #e1f0fe60;
+            border-radius: 0 16px 16px 0;
+            font-size: 0.9rem;
+        }
+        .badge-status {
+            font-size: 0.8rem;
+            background: #cfe5fc;
+            padding: 0.3rem 1.2rem;
+            border-radius: 40px;
+            font-weight: 500;
+        }
+
+        /* 三列并排核心布局: 实际立方体 | 饱和立方体 | 曲线图 */
+        .three-columns {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 1.8rem;
+            margin: 1rem 0 1.2rem 0;
+            align-items: stretch;
+        }
+
+        /* 左右两个立方体卡片样式 */
+        .cube-card {
+            flex: 1;
+            background: #f6fbfecc;
+            backdrop-filter: blur(2px);
+            border-radius: 2rem;
+            padding: 1.2rem 1rem 1.5rem;
+            text-align: center;
+            box-shadow: 0 12px 28px rgba(32, 80, 120, 0.1);
+            border: 1px solid #bddbff;
+            transition: transform 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .cube-card:hover {
+            transform: translateY(-4px);
+            background: #ffffffea;
+        }
+
+        .cube-title {
+            font-weight: 700;
+            font-size: 1.35rem;
+            color: #105e8c;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 0.8rem;
+        }
+        .cube-unit {
+            font-size: 0.8rem;
+            background: #c9e5ff;
+            padding: 2px 12px;
+            border-radius: 40px;
+        }
+        canvas.cube-canvas {
+            display: block;
+            margin: 0 auto;
+            background: #ffffffd9;
+            border-radius: 1.5rem;
+            box-shadow: 0 8px 18px rgba(0,0,0,0.08);
+            width: 100%;
+            max-width: 300px;
+            height: auto;
+            cursor: pointer;
+        }
+        .cube-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: #026aa7;
+            background: #e3f0fc;
+            display: inline-block;
+            padding: 0.2rem 1.2rem;
+            border-radius: 60px;
+            margin-top: 0.8rem;
+            font-family: 'JetBrains Mono', monospace;
+        }
+        .cube-desc {
+            font-size: 0.72rem;
+            color: #4a7da0;
+            margin-top: 8px;
+        }
+
+        /* 右侧曲线图卡片 */
+        .graph-card {
+            flex: 1.2;
+            background: #ecf5fecc;
+            backdrop-filter: blur(2px);
+            border-radius: 2rem;
+            padding: 1rem 1.2rem 1.2rem;
+            border: 1px solid #c7e0fc;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.2s;
+        }
+        .graph-card:hover {
+            background: #f2f8ffea;
+        }
+        .graph-title {
+            font-weight: 700;
+            color: #0c628b;
+            font-size: 1.2rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .graph-note {
+            font-size: 0.7rem;
+            font-weight: normal;
+            background: #cfe5fc80;
+            padding: 2px 12px;
+            border-radius: 30px;
+        }
+        canvas#saturationCurve {
+            width: 100%;
+            background: #ffffffea;
+            border-radius: 1.2rem;
+            display: block;
+            margin: 0 auto;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            height: auto;
+        }
+        .curve-footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 12px;
+            font-size: 0.7rem;
+            color: #2e6c96;
+            padding: 0 6px;
+        }
+
+        /* 控制栏 (横跨底部) */
+        .control-bar {
+            background: #e6f2ffdd;
+            backdrop-filter: blur(4px);
+            border-radius: 2rem;
+            padding: 1.2rem 2rem;
+            margin: 1rem 0 0.8rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            justify-content: space-between;
+        }
+        .slider-group {
+            flex: 1;
+            min-width: 220px;
+        }
+        .slider-group label {
+            font-weight: 700;
+            color: #0a5f8a;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            -webkit-appearance: none;
+            background: linear-gradient(90deg, #3b9eff, #b1d4ff);
+            border-radius: 10px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 22px;
+            height: 22px;
+            background: white;
+            border-radius: 50%;
+            border: 2px solid #1f7eb3;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            cursor: pointer;
+        }
+
+        /* 结果栏 */
+        .rh-box {
+            background: linear-gradient(115deg, #ffffff, #eef4fc);
+            border-radius: 2rem;
+            padding: 0.8rem 1.8rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-top: 0.8rem;
+            border-left: 8px solid #2c9bda;
+        }
+        .rh-badge {
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: #026aa7;
+            padding: 0.1rem 1.8rem;
+            border-radius: 70px;
+            color: white;
+            font-family: monospace;
+        }
+        .alert-tip {
+            background: #fff0cf;
+            padding: 0.3rem 1.4rem;
+            border-radius: 60px;
+            font-weight: 600;
+            color: #bc7200;
+        }
+        footer {
+            text-align: center;
+            font-size: 0.72rem;
+            color: #4f7fa3;
+            margin-top: 1.2rem;
+            border-top: 1px solid #cbe0f5;
+            padding-top: 0.9rem;
+        }
+
+        /* 响应式: 宽度不足时三列变为垂直 */
+        @media (max-width: 1100px) {
+            body {
+                padding: 20px;
+            }
+            .three-columns {
+                flex-wrap: wrap;
+                flex-direction: column;
+            }
+            .cube-card, .graph-card {
+                width: 100%;
+            }
+            canvas.cube-canvas {
+                max-width: 280px;
+            }
+        }
+        @media (min-width: 1600px) {
+            .cube-card {
+                padding: 1.5rem 1.2rem;
+            }
+            canvas.cube-canvas {
+                max-width: 340px;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="weather-lab">
+    <div class="header-area">
+        <div>
+            <h1>🧊 我的容量是有限的</h1>
+            <div class="sub">正方体表示单位体积空气 (1m³) · 粒子代表水分子 · 温度越低，容纳能力越弱</div>
+        </div>
+        <div class="badge-status">📐 常压状态 | 三区对比</div>
+    </div>
+
+    <!-- 三列并排: 实际水汽立方体 | 饱和水汽立方体 | 饱和曲线图 -->
+    <div class="three-columns">
+        <!-- 左侧：实际水汽含量立方体 -->
+        <div class="cube-card">
+            <div class="cube-title">
+                💧 实际水汽含量
+                <span class="cube-unit">g/m³</span>
+            </div>
+            <canvas id="cubeActual" class="cube-canvas" width="320" height="320" style="width:100%; max-width:320px; aspect-ratio:1/1"></canvas>
+            <div class="cube-value" id="actualValueDisplay">0.0 g/m³</div>
+            <div class="cube-desc">🎛️ 水分子数量随「实际水汽」滑块改变</div>
+        </div>
+
+        <!-- 中间：饱和水汽含量立方体（当前温度下的最大容量） -->
+        <div class="cube-card">
+            <div class="cube-title">
+                🌡️ 饱和水汽含量 (当前温度)
+                <span class="cube-unit">g/m³</span>
+            </div>
+            <canvas id="cubeSat" class="cube-canvas" width="320" height="320" style="width:100%; max-width:320px; aspect-ratio:1/1"></canvas>
+            <div class="cube-value" id="satValueDisplay">-- g/m³</div>
+            <div class="cube-desc" id="tempDesc">🌡️ 温度决定饱和容量 → 粒子最大数目</div>
+        </div>
+
+        <!-- 右侧：饱和曲线图（饱和水汽含量 vs 温度） -->
+        <div class="graph-card">
+            <div class="graph-title">
+                📈 饱和状态与气温的关系曲线
+                <span class="graph-note">温度 ↑ → 饱和水汽含量 ↑</span>
+            </div>
+            <canvas id="saturationCurve" width="550" height="380" style="width:100%; height:auto; background:#ffffff; border-radius: 1rem;"></canvas>
+            <div class="curve-footer">
+                <span>❄️ -10℃</span>
+                <span>🌡️ 当前温度点</span>
+                <span>🔥 40℃</span>
+            </div>
+            <div style="font-size:0.7rem; text-align:center; margin-top:6px; color:#3c789b;">饱和曲线 (最大持水量) · 单位: g/m³</div>
+        </div>
+    </div>
+
+    <!-- 控制栏 双滑块 -->
+    <div class="control-bar">
+        <div class="slider-group">
+            <label>🌡️ 环境温度 <span id="tempSliderVal" style="background:#ffffffcc; padding:2px 12px; border-radius: 30px;">25.0 °C</span></label>
+            <input type="range" id="tempSlider" min="-10" max="40" step="0.5" value="25">
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-top:4px;"><span>-10℃</span><span>10℃</span><span>25℃</span><span>40℃</span></div>
+        </div>
+        <div class="slider-group">
+            <label>💧 实际水汽含量 <span id="vaporSliderVal" style="background:#ffffffcc; padding:2px 12px; border-radius: 30px;">10.0 g/m³</span></label>
+            <input type="range" id="vaporSlider" min="0" max="50" step="0.2" value="10.0">
+            <div style="display:flex; justify-content:space-between; font-size:0.7rem; margin-top:4px;"><span>干燥 0</span><span>湿润 25</span><span>高湿 50</span></div>
+        </div>
+    </div>
+
+    <!-- 相对湿度结果 -->
+    <div class="rh-box">
+        <span style="font-weight:650;">📊 相对湿度 = 实际水汽含量 ÷ 饱和水汽含量 × 100%</span>
+        <div style="display: flex; gap: 20px; align-items: center;">
+            <span class="rh-badge" id="rhPercent">-- %</span>
+            <span id="satWarning" class="alert-tip">💧 空气未饱和</span>
+        </div>
+    </div>
+    <footer>
+        🧪 立方体中的每个闪亮粒子代表水分子 · 粒子数量反映含量 (g/m³) · 温度升高→饱和立方体粒子增多→容量变大<br>
+        ※ 相对湿度最大值 100% (实际水汽含量不能超过饱和值)
+    </footer>
+</div>
+
+<script>
+    (function(){
+        // 气象物理公式 (Tetens, 绝对湿度)
+        function satVaporPressure(tempC) {
+            return 6.112 * Math.exp((17.67 * tempC) / (tempC + 243.5));
+        }
+        function absoluteHumidity(e_hPa, tempC) {
+            const Tk = tempC + 273.15;
+            return (216.7 * e_hPa) / Tk;
+        }
+        function getSatWaterVapor(tempC) {
+            const es = satVaporPressure(tempC);
+            return absoluteHumidity(es, tempC);
+        }
+
+        // 当前状态
+        let currentTemp = 25.0;
+        let currentActual = 10.0;
+        let currentSat = 0.0;
+        let relativeHumidity = 0.0;
+
+        const MAX_VAPOR_SHOW = 52.0;      // 最大显示水汽含量52g/m³
+        const MAX_PARTICLES = 205;        // 最大粒子数
+
+        // Canvas元素
+        const cubeActualCanvas = document.getElementById('cubeActual');
+        const ctxActual = cubeActualCanvas.getContext('2d');
+        const cubeSatCanvas = document.getElementById('cubeSat');
+        const ctxSat = cubeSatCanvas.getContext('2d');
+        const curveCanvas = document.getElementById('saturationCurve');
+        const ctxCurve = curveCanvas.getContext('2d');
+
+        // DOM 元素
+        const tempSlider = document.getElementById('tempSlider');
+        const vaporSlider = document.getElementById('vaporSlider');
+        const tempSliderValSpan = document.getElementById('tempSliderVal');
+        const vaporSliderValSpan = document.getElementById('vaporSliderVal');
+        const actualValueSpan = document.getElementById('actualValueDisplay');
+        const satValueSpan = document.getElementById('satValueDisplay');
+        const tempDescSpan = document.getElementById('tempDesc');
+        const rhPercentSpan = document.getElementById('rhPercent');
+        const satWarningSpan = document.getElementById('satWarning');
+
+        // 固定立方体尺寸 320x320
+        const CUBE_SIZE = 320;
+        cubeActualCanvas.width = CUBE_SIZE;
+        cubeActualCanvas.height = CUBE_SIZE;
+        cubeSatCanvas.width = CUBE_SIZE;
+        cubeSatCanvas.height = CUBE_SIZE;
+
+        function getCubeGeometry(w, h) {
+            const frontW = w * 0.58;
+            const frontH = h * 0.58;
+            const offsetX = w * 0.15;
+            const offsetY = -h * 0.14;
+            const left = (w - frontW - offsetX) / 2 + offsetX * 0.2;
+            const top = (h - frontH - Math.abs(offsetY)) / 2 + Math.abs(offsetY);
+            return { frontW, frontH, offsetX, offsetY, left, top };
+        }
+
+        function pathPolygon(ctx, points) {
+            ctx.beginPath();
+            ctx.moveTo(points[0].x, points[0].y);
+            for (let i = 1; i < points.length; i++) {
+                ctx.lineTo(points[i].x, points[i].y);
+            }
+            ctx.closePath();
+        }
+
+        // 绘制更有透视感的单位体积空气立方体
+        function drawCubeWireframe(ctx, w, h) {
+            const g = getCubeGeometry(w, h);
+            const front = {
+                tl: { x: g.left, y: g.top },
+                tr: { x: g.left + g.frontW, y: g.top },
+                br: { x: g.left + g.frontW, y: g.top + g.frontH },
+                bl: { x: g.left, y: g.top + g.frontH }
+            };
+            const back = {
+                tl: { x: front.tl.x + g.offsetX, y: front.tl.y + g.offsetY },
+                tr: { x: front.tr.x + g.offsetX, y: front.tr.y + g.offsetY },
+                br: { x: front.br.x + g.offsetX, y: front.br.y + g.offsetY },
+                bl: { x: front.bl.x + g.offsetX, y: front.bl.y + g.offsetY }
+            };
+
+            ctx.save();
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+
+            ctx.shadowColor = "rgba(39, 87, 125, 0.16)";
+            ctx.shadowBlur = 18;
+            ctx.shadowOffsetY = 8;
+            pathPolygon(ctx, [front.bl, front.br, back.br, back.bl]);
+            ctx.fillStyle = "rgba(206, 230, 250, 0.34)";
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            pathPolygon(ctx, [front.tl, front.tr, back.tr, back.tl]);
+            ctx.fillStyle = "rgba(238, 248, 255, 0.74)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(48, 130, 190, 0.84)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            pathPolygon(ctx, [front.tr, front.br, back.br, back.tr]);
+            ctx.fillStyle = "rgba(190, 219, 246, 0.58)";
+            ctx.fill();
+            ctx.stroke();
+
+            pathPolygon(ctx, [front.bl, front.br, back.br, back.bl]);
+            ctx.fillStyle = "rgba(215, 235, 251, 0.46)";
+            ctx.fill();
+            ctx.stroke();
+
+            pathPolygon(ctx, [front.tl, front.tr, front.br, front.bl]);
+            ctx.fillStyle = "rgba(255, 255, 255, 0.32)";
+            ctx.fill();
+            ctx.strokeStyle = "rgba(18, 106, 158, 0.95)";
+            ctx.lineWidth = 2.6;
+            ctx.stroke();
+
+            ctx.strokeStyle = "rgba(36, 118, 178, 0.34)";
+            ctx.lineWidth = 1.1;
+            ctx.setLineDash([5, 7]);
+            ctx.beginPath();
+            ctx.moveTo(back.tl.x, back.tl.y);
+            ctx.lineTo(back.tr.x, back.tr.y);
+            ctx.lineTo(back.br.x, back.br.y);
+            ctx.lineTo(back.bl.x, back.bl.y);
+            ctx.closePath();
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(front.tl.x, front.tl.y);
+            ctx.lineTo(back.tl.x, back.tl.y);
+            ctx.moveTo(front.bl.x, front.bl.y);
+            ctx.lineTo(back.bl.x, back.bl.y);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+
+        function makeParticles(count) {
+            const particles = [];
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: Math.random(),
+                    y: Math.random(),
+                    z: Math.random(),
+                    r: 3.1 + Math.random() * 2.5,
+                    glow: 0.55 + Math.random() * 0.35
+                });
+            }
+            return particles;
+        }
+
+        function projectParticle(particle) {
+            const g = getCubeGeometry(CUBE_SIZE, CUBE_SIZE);
+            const depthScale = 0.22 + particle.z * 0.72;
+            return {
+                x: g.left + particle.x * g.frontW + (1 - particle.z) * g.offsetX,
+                y: g.top + particle.y * g.frontH + (1 - particle.z) * g.offsetY,
+                radius: particle.r * depthScale,
+                alpha: 0.35 + particle.z * 0.5 + particle.glow * 0.12,
+                z: particle.z
+            };
+        }
+
+        // 在立方体内部绘制粒子 (水分子)
+        function drawParticlesInCube(ctx, particles, valueGpm) {
+            ctx.clearRect(0, 0, CUBE_SIZE, CUBE_SIZE);
+            drawCubeWireframe(ctx, CUBE_SIZE, CUBE_SIZE);
+            const projected = particles.map(projectParticle).sort((a, b) => a.z - b.z);
+
+            for (const p of projected) {
+                ctx.shadowBlur = 6;
+                ctx.shadowColor = "rgba(0,120,200,0.28)";
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2);
+                ctx.fillStyle = `rgba(58, 155, 215, ${p.alpha})`;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.beginPath();
+                ctx.arc(p.x - p.radius * 0.32, p.y - p.radius * 0.32, p.radius * 0.28, 0, Math.PI*2);
+                ctx.fillStyle = "rgba(255, 255, 245, 0.86)";
+                ctx.fill();
+            }
+            ctx.font = "bold 14px 'Segoe UI', 'JetBrains Mono'";
+            ctx.fillStyle = "#136a96";
+            ctx.fillText(`${valueGpm.toFixed(1)} g/m³`, 38, 34);
+        }
+
+        function vaporToParticleCount(vaporGpm) {
+            let ratio = Math.min(1.0, vaporGpm / MAX_VAPOR_SHOW);
+            return Math.floor(ratio * MAX_PARTICLES);
+        }
+
+        // 绘制饱和曲线 (温度范围-10~45℃，纵轴0~62g/m³)
+        function drawSaturationCurve() {
+            const w = curveCanvas.width;
+            const h = curveCanvas.height;
+            ctxCurve.clearRect(0, 0, w, h);
+            ctxCurve.fillStyle = "#ffffff";
+            ctxCurve.fillRect(0, 0, w, h);
+            
+            const padLeft = 52;
+            const padRight = 28;
+            const padTop = 28;
+            const padBottom = 44;
+            const graphW = w - padLeft - padRight;
+            const graphH = h - padTop - padBottom;
+            const tMin = -10, tMax = 45;
+            const vMin = 0, vMax = 62;
+            
+            function mapX(temp) { return padLeft + (temp - tMin) / (tMax - tMin) * graphW; }
+            function mapY(value) { return padTop + graphH - (value - vMin) / (vMax - vMin) * graphH; }
+            
+            // 坐标轴
+            ctxCurve.beginPath();
+            ctxCurve.strokeStyle = "#6ea2ce";
+            ctxCurve.lineWidth = 1.4;
+            ctxCurve.moveTo(padLeft, padTop);
+            ctxCurve.lineTo(padLeft, padTop+graphH);
+            ctxCurve.lineTo(padLeft+graphW, padTop+graphH);
+            ctxCurve.stroke();
+            
+            ctxCurve.font = "11px 'Segoe UI'";
+            ctxCurve.fillStyle = "#1c6d96";
+            for (let t = -10; t <= 45; t+=10) {
+                let x = mapX(t);
+                ctxCurve.beginPath();
+                ctxCurve.moveTo(x, padTop+graphH);
+                ctxCurve.lineTo(x, padTop+graphH+5);
+                ctxCurve.stroke();
+                ctxCurve.fillText(t+"°C", x-8, padTop+graphH+18);
+            }
+            for (let v = 0; v <= 62; v+=10) {
+                let y = mapY(v);
+                if (y >= padTop && y <= padTop+graphH) {
+                    ctxCurve.beginPath();
+                    ctxCurve.moveTo(padLeft-5, y);
+                    ctxCurve.lineTo(padLeft, y);
+                    ctxCurve.stroke();
+                    ctxCurve.fillText(v+"", padLeft-26, y+4);
+                }
+            }
+            ctxCurve.fillText("温度 (℃)", w/2+20, h-12);
+            ctxCurve.save();
+            ctxCurve.translate(20, h/2);
+            ctxCurve.rotate(-Math.PI/2);
+            ctxCurve.fillText("饱和水汽含量 (g/m³)", -20, 0);
+            ctxCurve.restore();
+            
+            // 绘制饱和曲线
+            ctxCurve.beginPath();
+            ctxCurve.strokeStyle = "#1f7eb3";
+            ctxCurve.lineWidth = 3;
+            let first = true;
+            for (let t = tMin; t <= tMax; t += 0.25) {
+                let satVal = getSatWaterVapor(t);
+                if (satVal > vMax) satVal = vMax;
+                let x = mapX(t);
+                let y = mapY(satVal);
+                if (first) { ctxCurve.moveTo(x, y); first = false; }
+                else { ctxCurve.lineTo(x, y); }
+            }
+            ctxCurve.stroke();
+            // 面积填充
+            ctxCurve.beginPath();
+            first = true;
+            for (let t = tMin; t <= tMax; t += 0.3) {
+                let satVal = getSatWaterVapor(t);
+                if (satVal > vMax) satVal = vMax;
+                let x = mapX(t);
+                let y = mapY(satVal);
+                if (first) { ctxCurve.moveTo(x, y); first = false; }
+                else { ctxCurve.lineTo(x, y); }
+            }
+            ctxCurve.lineTo(mapX(tMax), mapY(vMin));
+            ctxCurve.lineTo(mapX(tMin), mapY(vMin));
+            ctxCurve.closePath();
+            ctxCurve.fillStyle = "#c3e2fc90";
+            ctxCurve.fill();
+            
+            // 当前温度点标记
+            const currentTempX = mapX(currentTemp);
+            const currentSatVal = Math.min(currentSat, vMax);
+            const currentPointY = mapY(currentSatVal);
+            ctxCurve.beginPath();
+            ctxCurve.arc(currentTempX, currentPointY, 8, 0, 2*Math.PI);
+            ctxCurve.fillStyle = "#f39c12";
+            ctxCurve.shadowBlur = 4;
+            ctxCurve.fill();
+            ctxCurve.beginPath();
+            ctxCurve.arc(currentTempX, currentPointY, 3.5, 0, 2*Math.PI);
+            ctxCurve.fillStyle = "#ffffff";
+            ctxCurve.fill();
+            ctxCurve.shadowBlur = 0;
+            ctxCurve.beginPath();
+            ctxCurve.moveTo(currentTempX, padTop);
+            ctxCurve.lineTo(currentTempX, padTop+graphH);
+            ctxCurve.strokeStyle = "#e67e22aa";
+            ctxCurve.setLineDash([6, 6]);
+            ctxCurve.stroke();
+            ctxCurve.setLineDash([]);
+            ctxCurve.font = "bold 11px monospace";
+            ctxCurve.fillStyle = "#bf6419";
+            ctxCurve.fillText(`${currentTemp.toFixed(1)}℃ | ${currentSat.toFixed(1)} g/m³`, currentTempX-45, padTop-6);
+        }
+
+        let actualParticles = makeParticles(vaporToParticleCount(currentActual));
+        let satParticles = [];
+
+        function updateReadouts() {
+            currentTemp = parseFloat(tempSlider.value);
+            currentActual = parseFloat(vaporSlider.value);
+            tempSliderValSpan.innerText = currentTemp.toFixed(1) + " °C";
+            vaporSliderValSpan.innerText = currentActual.toFixed(1) + " g/m³";
+            
+            currentSat = getSatWaterVapor(currentTemp);
+            if (currentSat < 0.01) currentSat = 0.01;
+            let rawRH = (currentActual / currentSat) * 100;
+            rawRH = Math.min(100, Math.max(0, rawRH));
+            relativeHumidity = rawRH;
+            
+            actualValueSpan.innerText = currentActual.toFixed(1) + " g/m³";
+            satValueSpan.innerText = currentSat.toFixed(1) + " g/m³";
+            tempDescSpan.innerText = `🌡️ ${currentTemp.toFixed(1)}℃ → 饱和容量 ${currentSat.toFixed(1)} g/m³ (粒子数代表最大容量)`;
+            rhPercentSpan.innerText = relativeHumidity.toFixed(1) + " %";
+            
+            if (relativeHumidity >= 99.5) {
+                satWarningSpan.innerHTML = "⚠️ 已达饱和 (相对湿度100%) · 水汽易凝结";
+                satWarningSpan.style.background = "#ffdec2";
+                satWarningSpan.style.color = "#b44500";
+            } else if (relativeHumidity > 80) {
+                satWarningSpan.innerHTML = "💧 空气潮湿，接近饱和";
+                satWarningSpan.style.background = "#d9efff";
+                satWarningSpan.style.color = "#0d6b9e";
+            } else if (relativeHumidity < 30) {
+                satWarningSpan.innerHTML = "🔥 空气干燥，蒸发旺盛";
+                satWarningSpan.style.background = "#fff0db";
+                satWarningSpan.style.color = "#bc6d00";
+            } else {
+                satWarningSpan.innerHTML = "🌿 湿度舒适";
+                satWarningSpan.style.background = "#e4f3e6";
+                satWarningSpan.style.color = "#2f7d5c";
+            }
+        }
+
+        function redrawScene() {
+            drawParticlesInCube(ctxActual, actualParticles, currentActual);
+            drawParticlesInCube(ctxSat, satParticles, currentSat);
+            drawSaturationCurve();
+        }
+
+        // 全局更新
+        function updateAll(changedSource = 'all') {
+            updateReadouts();
+            if (changedSource === 'all' || changedSource === 'actual') {
+                actualParticles = makeParticles(vaporToParticleCount(currentActual));
+            }
+            if (changedSource === 'all' || changedSource === 'temperature') {
+                satParticles = makeParticles(vaporToParticleCount(currentSat));
+            }
+            redrawScene();
+        }
+        
+        // 设置曲线画布初始大小 (右侧曲线横向稍宽)
+        function setCurveSize() {
+            const container = document.querySelector('.graph-card');
+            let width = Math.min(560, container.clientWidth - 30);
+            if (width < 400) width = 460;
+            curveCanvas.width = width;
+            curveCanvas.height = 360;
+            updateAll('none');
+        }
+        
+        window.addEventListener('resize', () => {
+            setCurveSize();
+        });
+        
+        tempSlider.addEventListener('input', () => updateAll('temperature'));
+        vaporSlider.addEventListener('input', () => updateAll('actual'));
+        
+        // 初始设定
+        cubeActualCanvas.width = 320; cubeActualCanvas.height = 320;
+        cubeSatCanvas.width = 320; cubeSatCanvas.height = 320;
+        setCurveSize();
+        updateAll();
+    })();
+</script>
+</body>
+</html>
